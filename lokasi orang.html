@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Real-time Location Share</title>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Firebase Compat -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+  <style>
+    body { margin:0; font-family:"Share Tech Mono", monospace; background:#000; color:#00ff88; }
+    #map { height:100vh; width:100%; }
+    #status { position: fixed; top:10px; left:10px; padding:6px 10px; background:rgba(0,0,0,0.7); border:1px solid #00ff88; border-radius:8px; z-index:1000; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div id="status">Minta izin lokasi...</div>
+  <div id="map"></div>
+
+  <script>
+    // Config Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyAeG3eB_zyWapubCKyIFaaF50aXF8GhipE",
+      authDomain: "tracking-project-d4fa6.firebaseapp.com",
+      databaseURL: "https://tracking-project-d4fa6-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "tracking-project-d4fa6",
+      storageBucket: "tracking-project-d4fa6.firebasestorage.app",
+      messagingSenderId: "953812351968",
+      appId: "1:953812351968:web:17ae63a8d1ece032e68985",
+      measurementId: "G-0HWLTMWJ4T"
+    };
+
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // Device ID unik
+    let deviceId = localStorage.getItem("deviceId");
+    if(!deviceId){
+      deviceId = "user_" + Date.now() + "_" + Math.floor(Math.random()*1000);
+      localStorage.setItem("deviceId", deviceId);
+    }
+
+    let map, marker;
+    const statusEl = document.getElementById("status");
+
+    function initMap(lat, lon) {
+      if(!map){
+        map = L.map("map").setView([lat, lon], 15);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19}).addTo(map);
+      }
+      if(marker) marker.remove();
+      marker = L.marker([lat, lon]).addTo(map).bindPopup("Lokasi kamu").openPopup();
+    }
+
+    // Geolocation
+    if(navigator.geolocation){
+      navigator.geolocation.watchPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const acc = pos.coords.accuracy;
+
+        initMap(lat, lon);
+        statusEl.textContent = `Lokasi aktif: ${lat.toFixed(5)}, ${lon.toFixed(5)} | Akurasi: ±${Math.round(acc)} m`;
+
+        // Kirim ke Firebase
+        database.ref("users/"+deviceId).set({
+          lat: lat,
+          lng: lon,
+          accuracy: acc,
+          time: Date.now()
+        }, err=>{
+          if(err) console.error("Gagal kirim:", err);
+          else console.log("Berhasil kirim ke Firebase!");
+        });
+
+      }, err => {
+        statusEl.textContent = "Gagal akses GPS, fallback Jakarta.";
+        initMap(-6.1754,106.8272);
+      }, {enableHighAccuracy:true, maximumAge:0, timeout:5000});
+    } else{
+      statusEl.textContent = "Browser tidak mendukung Geolocation.";
+    }
+  </script>
+  <script>
+  const auth = firebase.auth();
+  auth.signInAnonymously()
+    .then(() => {
+      console.log("Login anonim sukses, siap kirim data GPS");
+      startTracking(); // fungsi untuk kirim lokasi ke Firebase
+    })
+    .catch(err => console.error("Login anonim gagal:", err));
+
+  function startTracking(){
+    // semua kode navigator.geolocation.watchPosition ada di sini
+  }
+</script>
+</body>
+</html>
